@@ -1,0 +1,25 @@
+api_keys:
+  deepseek: ''
+  gemini: ''
+  groq: ''
+  ollama: ''
+  openai: ''
+  phind: enabled
+  pollinations: enabled
+enabled_models:
+  deepseek: false
+  gemini: false
+  groq: false
+  ollama: false
+  openai: false
+  phind: true
+  pollinations: true
+openai_api_base: https://api.openai.com/v1/chat/completions
+openai_url: api.openai.com/v1
+run_on_startup: true
+selected_model: phind
+selected_ollama_model: llama3
+shortcut_open_chat: Ctrl+L
+shortcut_open_chat_voice: Ctrl+Shift+L
+text_speed: 6
+tts_voice: en-AU-NatashaNeural
