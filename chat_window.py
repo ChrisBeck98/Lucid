@@ -86,13 +86,22 @@ class ChatWindow(QWidget):
         collapse_row = QHBoxLayout()
         self.collapse_button = QPushButton("\u25BC")
         self.collapse_button.setFixedWidth(30)
+        self.collapse_button.setFixedHeight(30)
         self.collapse_button.clicked.connect(self.tray_ref.animate_hide)
 
         self.voice_recognition_button = QPushButton()
         mic_icon_path = os.path.join("assets", "microphone_icon.png")
         self.voice_recognition_button.setIcon(QIcon(mic_icon_path))
         self.voice_recognition_button.setFixedWidth(30)
+        self.voice_recognition_button.setFixedHeight(30)
         self.voice_recognition_button.clicked.connect(self.start_voice_recognition)
+
+        self.popout_button = QPushButton("🗖")
+        self.popout_button.setFixedWidth(30)
+        self.popout_button.setFixedHeight(30)
+        self.popout_button.setToolTip("Pop out window")
+        self.popout_button.clicked.connect(self.toggle_popout)
+
 
         icon = QLabel()
         icon_pixmap = QPixmap(icon_path).scaled(30, 30, Qt.KeepAspectRatio, Qt.SmoothTransformation)
@@ -100,6 +109,7 @@ class ChatWindow(QWidget):
         collapse_row.addWidget(icon)
         collapse_row.addStretch()
         collapse_row.addWidget(self.voice_recognition_button)
+        collapse_row.addWidget(self.popout_button)
         collapse_row.addWidget(self.collapse_button)
         layout.addLayout(collapse_row)
 
@@ -132,6 +142,19 @@ class ChatWindow(QWidget):
         self.config = config
         self.typing_speed = config.get("text_speed", 20)
         self.tts_voice = config.get("tts_voice", "en-GB-RyanNeural")
+
+    def toggle_popout(self):
+        if self.windowFlags() & Qt.FramelessWindowHint:
+            print("[UI] Switching to pop-out mode")
+            self.setWindowFlags(Qt.Window)  # native movable/resizable window
+            self.setFixedSize(600, 600)     # or allow resizable with self.resize()
+        else:
+            print("[UI] Switching to tray mode")
+            self.setWindowFlags(Qt.WindowStaysOnTopHint | Qt.FramelessWindowHint)
+            self.setFixedSize(420, 520)
+
+        self.show()  # Must call show again after changing window flags
+
 
     def add_message(self, sender, message, selectable=False):
         bubble_widget = QWidget()
