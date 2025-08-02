@@ -16,7 +16,7 @@ from PyQt5.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QTextEdit, QPushButton, QLabel,
     QScrollArea, QToolButton, QApplication, QFrame
 )
-from PyQt5.QtCore import Qt, QTimerEvent, QTimer
+from PyQt5.QtCore import Qt, QTimerEvent, QTimer, QPoint
 from PyQt5.QtGui import QPixmap, QIcon, QClipboard
 from edge_tts import Communicate
 from playsound3 import playsound
@@ -25,33 +25,71 @@ from config.config_manager import load_config
 
 
 class ChatWindow(QWidget):
-    def __init__(self, icon_path, config, tray_ref = None):
+    def __init__(self, icon_path, config, tray_ref=None):
         super().__init__()
         self.setWindowTitle("Lucid")
         self.tray_ref = tray_ref
+        self.docked = True
         self.setFixedSize(420, 520)
         self.setWindowFlags(Qt.WindowStaysOnTopHint | Qt.FramelessWindowHint)
         self.setFocusPolicy(Qt.StrongFocus)
-        self.model = Model(model_path="config/models/vosk-model-small-en-us-0.15")  # Use correct path
+        self.model = Model(model_path="config/models/vosk-model-small-en-us-0.15")
         self.setObjectName("ChatWindow")
+        self.drag_pos = None
+        self.is_maximized = False
+
+        # UI Setup
         outer_frame = QFrame(self)
         outer_frame.setObjectName("OuterFrame")
         outer_layout = QVBoxLayout(outer_frame)
-
         main_layout = QVBoxLayout(self)
+
+        # Header goes above the framed content
+        collapse_row = QHBoxLayout()
+        icon = QLabel()
+        icon_pixmap = QPixmap(icon_path).scaled(30, 30, Qt.KeepAspectRatio, Qt.SmoothTransformation)
+        icon.setPixmap(icon_pixmap)
+        collapse_row.addWidget(icon)
+
+        collapse_row.addStretch()
+
+        self.voice_recognition_button = QPushButton()
+        mic_icon_path = os.path.join("assets", "microphone_icon.png")
+        self.voice_recognition_button.setIcon(QIcon(mic_icon_path))
+        self.voice_recognition_button.setToolTip("Voice Recognition")
+        self.voice_recognition_button.setFixedSize(30, 30)
+        self.voice_recognition_button.clicked.connect(self.start_voice_recognition)
+        collapse_row.addWidget(self.voice_recognition_button)
+
+        self.dock_button = QPushButton("🗗")
+        self.dock_button.setFixedSize(30, 30)
+        self.dock_button.setToolTip("Undock Chat")
+        self.dock_button.clicked.connect(self.toggle_popout)
+        collapse_row.addWidget(self.dock_button)
+
+        self.collapse_button = QPushButton("▼")
+        self.collapse_button.setToolTip("Minimize to Tray")
+        self.collapse_button.setFixedSize(30, 30)
+        self.collapse_button.clicked.connect(self.tray_ref.animate_hide)
+        collapse_row.addWidget(self.collapse_button)
+
+        # Add header before the main container
+        main_layout.addLayout(collapse_row)
         main_layout.addWidget(outer_frame)
-        layout = outer_layout  # Use this for the rest of the content
+        layout = outer_layout  # for rest of the layout
 
 
         self.config = load_config()
         self.typing_speed = self.config.get("text_speed", 20)
         self.tts_voice = self.config.get("tts_voice", "en-GB-RyanNeural")
 
-        self.setStyleSheet("""
+        self.setStyleSheet(""" 
             QFrame#OuterFrame {
                 border: 1px solid #334455;
                 border-radius: 12px;
+                margin-top: 4px;
             }
+
             QWidget#ChatWindow {
                 background-color: #000c18;
                 color: #6688cc;
@@ -83,36 +121,8 @@ class ChatWindow(QWidget):
             }
         """)
 
-        collapse_row = QHBoxLayout()
-        self.collapse_button = QPushButton("\u25BC")
-        self.collapse_button.setFixedWidth(30)
-        self.collapse_button.setFixedHeight(30)
-        self.collapse_button.clicked.connect(self.tray_ref.animate_hide)
-
-        self.voice_recognition_button = QPushButton()
-        mic_icon_path = os.path.join("assets", "microphone_icon.png")
-        self.voice_recognition_button.setIcon(QIcon(mic_icon_path))
-        self.voice_recognition_button.setFixedWidth(30)
-        self.voice_recognition_button.setFixedHeight(30)
-        self.voice_recognition_button.clicked.connect(self.start_voice_recognition)
-
-        self.popout_button = QPushButton("🗖")
-        self.popout_button.setFixedWidth(30)
-        self.popout_button.setFixedHeight(30)
-        self.popout_button.setToolTip("Pop out window")
-        self.popout_button.clicked.connect(self.toggle_popout)
-
-
-        icon = QLabel()
-        icon_pixmap = QPixmap(icon_path).scaled(30, 30, Qt.KeepAspectRatio, Qt.SmoothTransformation)
-        icon.setPixmap(icon_pixmap)
-        collapse_row.addWidget(icon)
-        collapse_row.addStretch()
-        collapse_row.addWidget(self.voice_recognition_button)
-        collapse_row.addWidget(self.popout_button)
-        collapse_row.addWidget(self.collapse_button)
-        layout.addLayout(collapse_row)
-
+       
+        # Chat Area
         self.chat_area = QScrollArea()
         self.chat_area.setWidgetResizable(True)
         self.chat_area.setStyleSheet("background-color: transparent; border: none;")
@@ -124,6 +134,7 @@ class ChatWindow(QWidget):
         self.chat_area.setWidget(container)
         layout.addWidget(self.chat_area)
 
+        # Input and send
         self.input_box = EnterSendTextEdit(self.send_prompt)
         self.input_box.setPlaceholderText("Ask something...")
         self.input_box.setFixedHeight(80)
@@ -138,23 +149,46 @@ class ChatWindow(QWidget):
         self.typing_text = ""
         self.typing_index = 0
 
+    # --- Popout / Restore ---
+
+
+    def toggle_popout(self):
+        if self.docked:
+            self.setWindowFlags(Qt.FramelessWindowHint | Qt.Window)
+            self.setFixedSize(640, 480)
+            screen = QApplication.primaryScreen().availableGeometry()
+            x = screen.center().x() - self.width() // 2
+            y = screen.center().y() - self.height() // 2
+            self.move(x, y)
+            self.docked = False
+            self.dock_button.setToolTip("Dock to tray")
+        else:
+            self.setWindowFlags(Qt.FramelessWindowHint | Qt.WindowStaysOnTopHint)
+            self.setFixedSize(420, 520)
+            self.tray_ref.position_chat_window()
+            self.docked = True
+            self.dock_button.setToolTip("Pop out window")
+            
+
+
+        self.show()  # Must call show() again after changing flags
+
+
+    # --- Drag to Move ---
+    def mousePressEvent(self, event):
+        if event.button() == Qt.LeftButton:
+            self.drag_pos = event.globalPos() - self.frameGeometry().topLeft()
+            event.accept()
+
+    def mouseMoveEvent(self, event):
+        if event.buttons() & Qt.LeftButton and self.drag_pos:
+            self.move(event.globalPos() - self.drag_pos)
+            event.accept()
+
     def apply_config(self, config):
         self.config = config
         self.typing_speed = config.get("text_speed", 20)
         self.tts_voice = config.get("tts_voice", "en-GB-RyanNeural")
-
-    def toggle_popout(self):
-        if self.windowFlags() & Qt.FramelessWindowHint:
-            print("[UI] Switching to pop-out mode")
-            self.setWindowFlags(Qt.Window)  # native movable/resizable window
-            self.setFixedSize(600, 600)     # or allow resizable with self.resize()
-        else:
-            print("[UI] Switching to tray mode")
-            self.setWindowFlags(Qt.WindowStaysOnTopHint | Qt.FramelessWindowHint)
-            self.setFixedSize(420, 520)
-
-        self.show()  # Must call show again after changing window flags
-
 
     def add_message(self, sender, message, selectable=False):
         bubble_widget = QWidget()
