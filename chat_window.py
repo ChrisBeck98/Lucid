@@ -8,13 +8,14 @@ import queue
 import json
 from vosk import Model, KaldiRecognizer
 import sounddevice as sd
+from config.config_manager import load_config, save_config
 
 if sys.platform.startswith("win") and isinstance(asyncio.get_event_loop(), asyncio.ProactorEventLoop):
     asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
 
 from PyQt5.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QTextEdit, QPushButton, QLabel,
-    QScrollArea, QToolButton, QApplication, QFrame
+    QScrollArea, QToolButton, QApplication, QFrame, QComboBox
 )
 from PyQt5.QtCore import Qt, QTimerEvent, QTimer, QPoint
 from PyQt5.QtGui import QPixmap, QIcon, QClipboard
@@ -32,26 +33,72 @@ class ChatWindow(QWidget):
         self.docked = True
         self.setFixedSize(420, 520)
         self.setWindowFlags(Qt.WindowStaysOnTopHint | Qt.FramelessWindowHint)
+        self.setAttribute(Qt.WA_TranslucentBackground)  # Enables transparency
         self.setFocusPolicy(Qt.StrongFocus)
         self.model = Model(model_path="config/models/vosk-model-small-en-us-0.15")
         self.setObjectName("ChatWindow")
+        self.setProperty("docked", True)
         self.drag_pos = None
         self.is_maximized = False
 
-        # UI Setup
-        outer_frame = QFrame(self)
-        outer_frame.setObjectName("OuterFrame")
-        outer_layout = QVBoxLayout(outer_frame)
-        main_layout = QVBoxLayout(self)
+        self.config = load_config()
+        self.typing_speed = self.config.get("text_speed", 20)
+        self.tts_voice = self.config.get("tts_voice", "en-GB-RyanNeural")
 
-        # Header goes above the framed content
+        # --- Main Layout ---
+        main_layout = QVBoxLayout(self)
+        main_layout.setContentsMargins(10, 10, 10, 10)
+
+        self.outer_container = QFrame(self)
+        self.outer_container.setObjectName("OuterFrame")
+        self.outer_container.setAttribute(Qt.WA_StyledBackground, True)
+        main_layout.addWidget(self.outer_container)
+
+        outer_layout = QVBoxLayout(self.outer_container)
+        outer_layout.setContentsMargins(12, 12, 12, 12)
+        outer_layout.setSpacing(10)
+
+        # --- Header Buttons ---
         collapse_row = QHBoxLayout()
         icon = QLabel()
         icon_pixmap = QPixmap(icon_path).scaled(30, 30, Qt.KeepAspectRatio, Qt.SmoothTransformation)
         icon.setPixmap(icon_pixmap)
         collapse_row.addWidget(icon)
-
         collapse_row.addStretch()
+
+        # Model selector dropdown
+        self.model_dropdown = QComboBox()
+        self.model_dropdown.setFixedHeight(30)
+        self.model_dropdown.setStyleSheet("""
+            QComboBox {
+                background-color: #001626;
+                color: #aaccff;
+                border-radius: 6px;
+                padding: 4px;
+            }
+        """)
+
+        # Populate from enabled models
+        available_models = [
+            "gpt-3.5-turbo", "gpt-4o", "gemini-pro", "deepseek-chat",
+            "mixtral", "llama3", "phind", "isou", "pollinations"
+        ]
+        enabled_models = self.config.get("enabled_models", {})
+        for model in available_models:
+            provider = self.get_provider_from_model(model)
+            if enabled_models.get(provider, False):
+                self.model_dropdown.addItem(model)
+
+        # Set current model
+        current_model = self.config.get("selected_model", "phind")
+        index = self.model_dropdown.findText(current_model)
+        if index != -1:
+            self.model_dropdown.setCurrentIndex(index)
+
+        # Update config on change
+        self.model_dropdown.currentIndexChanged.connect(self.update_model_selection)
+        collapse_row.addWidget(self.model_dropdown)
+
 
         self.voice_recognition_button = QPushButton()
         mic_icon_path = os.path.join("assets", "microphone_icon.png")
@@ -73,56 +120,9 @@ class ChatWindow(QWidget):
         self.collapse_button.clicked.connect(self.tray_ref.animate_hide)
         collapse_row.addWidget(self.collapse_button)
 
-        # Add header before the main container
-        main_layout.addLayout(collapse_row)
-        main_layout.addWidget(outer_frame)
-        layout = outer_layout  # for rest of the layout
+        outer_layout.addLayout(collapse_row)
 
-
-        self.config = load_config()
-        self.typing_speed = self.config.get("text_speed", 20)
-        self.tts_voice = self.config.get("tts_voice", "en-GB-RyanNeural")
-
-        self.setStyleSheet(""" 
-            QFrame#OuterFrame {
-                border: 1px solid #334455;
-                border-radius: 12px;
-                margin-top: 4px;
-            }
-
-            QWidget#ChatWindow {
-                background-color: #000c18;
-                color: #6688cc;
-                border-radius: 12px;
-                font-family: 'Segoe UI', sans-serif;
-                font-size: 12pt;
-            }
-            QTextEdit {
-                background-color: #001626;
-                color: #aaccff;
-                border: 1px solid #334455;
-                border-radius: 6px;
-                padding: 5px;
-            }
-            QPushButton {
-                background-color: #223344;
-                color: #6688cc;
-                border: none;
-                border-radius: 6px;
-                padding: 6px;
-            }
-            QPushButton:hover {
-                background-color: #334455;
-            }
-            QLabel {
-                padding: 6px;
-                border-radius: 6px;
-                color: #6688cc;
-            }
-        """)
-
-       
-        # Chat Area
+        # --- Chat Area ---
         self.chat_area = QScrollArea()
         self.chat_area.setWidgetResizable(True)
         self.chat_area.setStyleSheet("background-color: transparent; border: none;")
@@ -132,47 +132,88 @@ class ChatWindow(QWidget):
         container = QWidget()
         container.setLayout(self.chat_content)
         self.chat_area.setWidget(container)
-        layout.addWidget(self.chat_area)
+        outer_layout.addWidget(self.chat_area)
 
-        # Input and send
+        # --- Input + Send ---
         self.input_box = EnterSendTextEdit(self.send_prompt)
         self.input_box.setPlaceholderText("Ask something...")
         self.input_box.setFixedHeight(80)
-        layout.addWidget(self.input_box)
+        outer_layout.addWidget(self.input_box)
 
         self.send_button = QPushButton("Send")
         self.send_button.clicked.connect(self.send_prompt)
-        layout.addWidget(self.send_button)
+        outer_layout.addWidget(self.send_button)
 
         self.typing_timer = None
         self.typing_label = None
         self.typing_text = ""
         self.typing_index = 0
 
-    # --- Popout / Restore ---
+        # --- Stylesheet ---
+        self.setStyleSheet("""
+            QWidget#ChatWindow {
+                background-color: transparent;
+            }
+
+            QFrame#OuterFrame {
+                background-color: #000c18;
+                border-radius: 10px;
+                border: 2px solid #334455;
+            }
+
+            QTextEdit {
+                background-color: #001626;
+                color: #aaccff;
+                border: 1px solid #334455;
+                border-radius: 6px;
+                padding: 5px;
+            }
+
+            QPushButton {
+                background-color: #223344;
+                color: #6688cc;
+                border: none;
+                border-radius: 6px;
+                padding: 6px;
+            }
+
+            QPushButton:hover {
+                background-color: #334455;
+            }
+
+            QLabel {
+                padding: 6px;
+                border-radius: 6px;
+                color: #6688cc;
+            }
+        """)
+
+           # --- Popout / Restore ---
 
 
     def toggle_popout(self):
         if self.docked:
-            self.setWindowFlags(Qt.FramelessWindowHint | Qt.Window)
+            self.setWindowFlags(Qt.WindowStaysOnTopHint | Qt.FramelessWindowHint)
+            self.setAttribute(Qt.WA_TranslucentBackground)
             self.setFixedSize(640, 480)
             screen = QApplication.primaryScreen().availableGeometry()
             x = screen.center().x() - self.width() // 2
             y = screen.center().y() - self.height() // 2
             self.move(x, y)
             self.docked = False
+            self.setProperty("docked", False)
             self.dock_button.setToolTip("Dock to tray")
         else:
             self.setWindowFlags(Qt.FramelessWindowHint | Qt.WindowStaysOnTopHint)
             self.setFixedSize(420, 520)
             self.tray_ref.position_chat_window()
             self.docked = True
+            self.setProperty("docked", True)
             self.dock_button.setToolTip("Pop out window")
-            
 
-
+        self.style().unpolish(self)
+        self.style().polish(self)
         self.show()  # Must call show() again after changing flags
-
 
     # --- Drag to Move ---
     def mousePressEvent(self, event):
@@ -189,6 +230,22 @@ class ChatWindow(QWidget):
         self.config = config
         self.typing_speed = config.get("text_speed", 20)
         self.tts_voice = config.get("tts_voice", "en-GB-RyanNeural")
+
+    def get_provider_from_model(self, model):
+        mapping = {
+            "gpt-3.5-turbo": "openai", "gpt-4o": "openai",
+            "gemini-pro": "gemini", "deepseek-chat": "deepseek",
+            "mixtral": "groq", "llama3": "groq",
+            "phind": "phind", "isou": "isou", "pollinations": "pollinations"
+        }
+        return mapping.get(model, "phind")
+    
+    def update_model_selection(self):
+        selected_model = self.model_dropdown.currentText()
+        self.config["selected_model"] = selected_model
+        save_config(self.config)
+
+
 
     def add_message(self, sender, message, selectable=False):
         bubble_widget = QWidget()
