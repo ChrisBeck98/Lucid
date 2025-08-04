@@ -4,6 +4,7 @@ from PyQt5.QtGui import QIcon, QCursor, QMouseEvent
 from chat_window import ChatWindow
 from settings_window import SettingsWindow
 from config.config_manager import load_config
+from chat_manager import ChatManagerWindow
 
 
 class TrayApp(QSystemTrayIcon):
@@ -14,8 +15,9 @@ class TrayApp(QSystemTrayIcon):
         self.config = load_config()
 
         self.chat_windows = []
+        self.chat_manager = ChatManagerWindow(self)
         self.icon_path = icon_path  # Save for reuse
-        self.open_new_chat_window()
+
 
         self.settings_window = SettingsWindow(self.chat_windows, icon_path, self.config)
 
@@ -112,6 +114,11 @@ class TrayApp(QSystemTrayIcon):
             """)
             layout = QVBoxLayout()
 
+            manager_button = QPushButton("Chat Manager")
+            manager_button.clicked.connect(self.show_chat_manager)
+            layout.addWidget(manager_button)
+
+
             new_chat_button = QPushButton("New Chat")
             new_chat_button.clicked.connect(self.open_new_chat_window)
             layout.addWidget(new_chat_button)
@@ -142,6 +149,14 @@ class TrayApp(QSystemTrayIcon):
         chat_window.activateWindow()
         chat_window.setFocus()
         self.chat_windows.append(chat_window)
+        self.chat_manager.refresh()
 
         # Remove closed windows from the list
         chat_window.destroyed.connect(lambda: self.chat_windows.remove(chat_window))
+
+    def show_chat_manager(self):
+        self.chat_manager.refresh()
+        self.chat_manager.show()
+        self.chat_manager.activateWindow()
+        self.chat_manager.setFocus()
+
