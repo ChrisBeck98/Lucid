@@ -31,7 +31,7 @@ class TrayApp(QSystemTrayIcon):
 
     def tray_click(self, reason):
         if reason == QSystemTrayIcon.Trigger:
-            self.toggle_chat_window()    
+            self.show_chat_manager()
         elif reason == QSystemTrayIcon.Context:
             self.show_popup_menu()
 
@@ -145,14 +145,28 @@ class TrayApp(QSystemTrayIcon):
 
     def open_new_chat_window(self):
         chat_window = ChatWindow(self.icon_path, self.config, self)
+        self.chat_windows.append(chat_window)
+
+        # Position to the right of the ChatManager if it's visible
+        if self.chat_manager.isVisible():
+            mgr_geom = self.chat_manager.geometry()
+            x = mgr_geom.x() + mgr_geom.width() + 10
+            y = mgr_geom.y()
+            chat_window.move(x, y)
+        else:
+            # Default position
+            screen = QApplication.primaryScreen().availableGeometry()
+            x = screen.width() - chat_window.width() - 10
+            y = screen.height() - chat_window.height()
+            chat_window.move(x, y)
+
         chat_window.show()
         chat_window.activateWindow()
         chat_window.setFocus()
-        self.chat_windows.append(chat_window)
         self.chat_manager.refresh()
 
-        # Remove closed windows from the list
-        chat_window.destroyed.connect(lambda: self.chat_windows.remove(chat_window))
+
+
 
     def show_chat_manager(self):
         self.chat_manager.refresh()

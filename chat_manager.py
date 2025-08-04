@@ -1,6 +1,6 @@
 from PyQt5.QtWidgets import (
     QWidget, QListWidget, QVBoxLayout, QLabel, QHBoxLayout,
-    QPushButton
+    QPushButton, QListWidgetItem, QInputDialog, QMenu, QAction
 )
 from PyQt5.QtCore import Qt
 from PyQt5.QtGui import QIcon, QPixmap
@@ -55,10 +55,10 @@ class ChatManagerWindow(QWidget):
 
         # --- Header Bar ---
         header = QHBoxLayout()
-        logo = QLabel()
-        pixmap = QPixmap("assets/logo-colour.svg").scaled(20, 20, Qt.KeepAspectRatio, Qt.SmoothTransformation)
-        logo.setPixmap(pixmap)
-        header.addWidget(logo)
+        icon = QLabel()
+        icon_pixmap = QPixmap("assets/logo-colour.svg").scaled(30, 30, Qt.KeepAspectRatio, Qt.SmoothTransformation)
+        icon.setPixmap(icon_pixmap)
+        header.addWidget(icon)
 
         header.addStretch()
 
@@ -88,21 +88,124 @@ class ChatManagerWindow(QWidget):
         # --- Chat List ---
         self.chat_list = QListWidget()
         self.chat_list.itemClicked.connect(self.focus_chat)
+        self.chat_list.setContextMenuPolicy(Qt.CustomContextMenu)
+        self.chat_list.customContextMenuRequested.connect(self.show_context_menu)
         layout.addWidget(self.chat_list)
+
 
         self.refresh()
 
     def refresh(self):
         self.chat_list.clear()
         for i, chat in enumerate(self.tray_ref.chat_windows):
-            title = f"Chat {i + 1} ({chat.config.get('selected_model', 'Unknown')})"
-            self.chat_list.addItem(title)
+            title = getattr(chat, "custom_name", f"Chat {i + 1}")
+            model = chat.config.get("selected_model", "Unknown")
+            title += f" ({model})"
+
+
+            preview = self.get_last_user_message(chat)
+
+            widget = QWidget()
+            vbox = QVBoxLayout(widget)
+            vbox.setContentsMargins(10, 10, 10, 10)
+
+            title_label = QLabel(title)
+            title_label.setStyleSheet("font-weight: bold;")
+            vbox.addWidget(title_label)
+
+            preview_label = QLabel(preview)
+            preview_label.setWordWrap(True)
+            preview_label.setStyleSheet("color: #6688cc; font-size: 10pt;")
+            vbox.addWidget(preview_label)
+
+            item = QListWidgetItem()
+            item.setSizeHint(widget.sizeHint())
+            self.chat_list.addItem(item)
+            self.chat_list.setItemWidget(item, widget)
+
 
     def focus_chat(self, item):
         index = self.chat_list.row(item)
         if 0 <= index < len(self.tray_ref.chat_windows):
             chat = self.tray_ref.chat_windows[index]
-            chat.show()
+
+            if not chat.isVisible():
+                # Position chat to the right of the manager
+                if self.isVisible():
+                    mgr_geom = self.geometry()
+                    x = mgr_geom.x() + mgr_geom.width() + 10
+                    y = mgr_geom.y()
+                    chat.move(x, y)
+
+                chat.show()
+
             chat.raise_()
             chat.activateWindow()
             chat.setFocus()
+
+
+    def get_last_user_message(self, chat):
+        user_messages = [msg for sender, msg in getattr(chat, "message_history", []) if sender == "You"]
+        if not user_messages:
+            return "(No messages yet)"
+        
+        last_msg = user_messages[-1].strip().replace('\n', ' ')
+        lines = last_msg.split('. ')
+        preview = ". ".join(lines[:2])
+        return preview[:100] + ("…" if len(preview) > 100 else "")
+
+    def show_context_menu(self, position):
+        item = self.chat_list.itemAt(position)
+        if not item:
+            return
+
+        index = self.chat_list.row(item)
+        if not (0 <= index < len(self.tray_ref.chat_windows)):
+            return
+
+        chat = self.tray_ref.chat_windows[index]
+
+        menu = QMenu()
+
+        open_action = QAction("Open Chat", self)
+        open_action.triggered.connect(lambda: self.focus_chat(item))
+        menu.addAction(open_action)
+
+        rename_action = QAction("Rename Chat", self)
+        rename_action.triggered.connect(lambda: self.rename_chat(index))
+        menu.addAction(rename_action)
+
+        delete_action = QAction("Delete Chat", self)
+        delete_action.triggered.connect(lambda: self.delete_chat(index))
+        menu.addAction(delete_action)
+
+        menu.exec_(self.chat_list.viewport().mapToGlobal(position))
+
+    def rename_chat(self, index):
+        chat = self.tray_ref.chat_windows[index]
+        current_name = getattr(chat, "custom_name", f"Chat {index + 1}")
+        new_name, ok = QInputDialog.getText(self, "Rename Chat", "Enter a new name:", text=current_name)
+        if ok and new_name.strip():
+            chat.custom_name = new_name.strip()
+            self.refresh()
+
+    def delete_chat(self, index):
+        chat = self.tray_ref.chat_windows[index]
+        chat.hide()
+        chat.deleteLater()  # schedules it for deletion
+        del self.tray_ref.chat_windows[index]  # remove it manually
+        self.refresh()  # update the chat list
+
+    def mousePressEvent(self, event):
+        if event.button() == Qt.LeftButton:
+            self.drag_pos = event.globalPos() - self.frameGeometry().topLeft()
+            event.accept()
+
+    def mouseMoveEvent(self, event):
+        if event.buttons() & Qt.LeftButton and hasattr(self, "drag_pos"):
+            self.move(event.globalPos() - self.drag_pos)
+            event.accept()
+
+
+
+
