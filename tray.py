@@ -12,13 +12,17 @@ class TrayApp(QSystemTrayIcon):
 
         chat_open = False
         self.config = load_config()
-        self.chat_window = ChatWindow(icon_path, self.config, self)
-        self.settings_window = SettingsWindow(self.chat_window, icon_path, self.config)
+
+        self.chat_windows = []
+        self.icon_path = icon_path  # Save for reuse
+        self.open_new_chat_window()
+
+        self.settings_window = SettingsWindow(self.chat_windows, icon_path, self.config)
 
         self.setToolTip("Lucid")
         self.menu_popup = None
-        self.animation = QPropertyAnimation(self.chat_window, b"pos")
-        self.animation.setDuration(300)
+
+
 
 
         self.activated.connect(self.tray_click)
@@ -31,49 +35,58 @@ class TrayApp(QSystemTrayIcon):
 
 
     def toggle_chat_window(self):
-        if self.chat_window.isVisible():
-            self.animate_hide()
+        if not self.chat_windows:
+            return
+
+        chat_window = self.chat_windows[0]
+        if chat_window.isVisible():
+            self.animate_hide(chat_window)
         else:
-            self.position_chat_window()
-            self.animate_show()
+            self.position_chat_window(chat_window)
+            self.animate_show(chat_window)
 
-    def position_chat_window(self):
-        screen = QApplication.primaryScreen().availableGeometry()
-        x = screen.width() - self.chat_window.width() - 10
-        y = screen.height() - self.chat_window.height()
-        self.chat_window.move(x, y)
 
-    def animate_show(self):
+    def position_chat_window(self, chat_window):
         screen = QApplication.primaryScreen().availableGeometry()
-        end_pos = self.chat_window.pos()
+        x = screen.width() - chat_window.width() - 10
+        y = screen.height() - chat_window.height()
+        chat_window.move(x, y)
+
+
+    def animate_show(self, chat_window):
+        screen = QApplication.primaryScreen().availableGeometry()
+        end_pos = chat_window.pos()
         start_pos = QPoint(end_pos.x(), screen.height())
-        self.chat_window.move(start_pos)
-        self.chat_window.show()
-        self.chat_window.activateWindow()
-        self.chat_window.setFocus()
+        chat_window.move(start_pos)
+        chat_window.show()
+        chat_window.activateWindow()
+        chat_window.setFocus()
 
-        print("[DEBUG] Animate show from", start_pos, "to", end_pos)
-        self.animation.stop()
-        self.animation.setStartValue(start_pos)
-        self.animation.setEndValue(end_pos)
-        self.animation.start()
+        animation = QPropertyAnimation(chat_window, b"pos")
+        animation.setDuration(300)
+        animation.setStartValue(start_pos)
+        animation.setEndValue(end_pos)
+        animation.start()
+        chat_window._animation = animation  # Prevent GC
 
-    def animate_hide(self):
+
+    def animate_hide(self, chat_window):
         screen = QApplication.primaryScreen().availableGeometry()
-        start_pos = self.chat_window.pos()
+        start_pos = chat_window.pos()
         end_pos = QPoint(start_pos.x(), screen.height())
 
-        print("[DEBUG] Animate hide from", start_pos, "to", end_pos)
-        self.animation.stop()
-        self.animation.setStartValue(start_pos)
-        self.animation.setEndValue(end_pos)
-        self.animation.start()
+        animation = QPropertyAnimation(chat_window, b"pos")
+        animation.setDuration(300)
+        animation.setStartValue(start_pos)
+        animation.setEndValue(end_pos)
 
-        loop = QEventLoop()
-        self.animation.finished.connect(loop.quit)
-        loop.exec_()
+        def on_finished():
+            chat_window.hide()
 
-        self.chat_window.hide()
+        animation.finished.connect(on_finished)
+        animation.start()
+        chat_window._animation = animation  # Prevent GC
+
 
     def show_popup_menu(self):
         if self.menu_popup is None:
@@ -99,9 +112,9 @@ class TrayApp(QSystemTrayIcon):
             """)
             layout = QVBoxLayout()
 
-            chat_button = QPushButton("New Chat")
-            chat_button.clicked.connect(self.toggle_chat_window)
-            layout.addWidget(chat_button)
+            new_chat_button = QPushButton("New Chat")
+            new_chat_button.clicked.connect(self.open_new_chat_window)
+            layout.addWidget(new_chat_button)
 
             settings_button = QPushButton("Settings")
             settings_button.clicked.connect(self.open_settings_window)
@@ -123,3 +136,12 @@ class TrayApp(QSystemTrayIcon):
         self.settings_window.setFocus()
 
 
+    def open_new_chat_window(self):
+        chat_window = ChatWindow(self.icon_path, self.config, self)
+        chat_window.show()
+        chat_window.activateWindow()
+        chat_window.setFocus()
+        self.chat_windows.append(chat_window)
+
+        # Remove closed windows from the list
+        chat_window.destroyed.connect(lambda: self.chat_windows.remove(chat_window))

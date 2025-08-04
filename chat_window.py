@@ -25,6 +25,7 @@ from widgets.enter_send_textedit import EnterSendTextEdit
 from config.config_manager import load_config
 
 
+
 class ChatWindow(QWidget):
     def __init__(self, icon_path, config, tray_ref=None):
         super().__init__()
@@ -117,7 +118,7 @@ class ChatWindow(QWidget):
         self.collapse_button = QPushButton("▼")
         self.collapse_button.setToolTip("Minimize to Tray")
         self.collapse_button.setFixedSize(30, 30)
-        self.collapse_button.clicked.connect(self.tray_ref.animate_hide)
+        self.collapse_button.clicked.connect(lambda: self.tray_ref.animate_hide(self))
         collapse_row.addWidget(self.collapse_button)
 
         outer_layout.addLayout(collapse_row)
@@ -206,13 +207,24 @@ class ChatWindow(QWidget):
         else:
             self.setWindowFlags(Qt.FramelessWindowHint | Qt.WindowStaysOnTopHint)
             self.setFixedSize(420, 520)
-            self.tray_ref.position_chat_window()
+            self.tray_ref.position_chat_window(self)
             self.docked = True
             self.setProperty("docked", True)
             self.dock_button.setToolTip("Pop out window")
 
         self.style().unpolish(self)
         self.style().polish(self)
+
+        if self.tray_ref is not None:
+            self.setWindowFlags(Qt.FramelessWindowHint | Qt.Window)
+            self.docked = False
+            self.setProperty("docked", False)
+        else:
+            self.setWindowFlags(Qt.WindowStaysOnTopHint | Qt.FramelessWindowHint)
+            self.docked = True
+            self.setProperty("docked", True)
+
+
         self.show()  # Must call show() again after changing flags
 
     # --- Drag to Move ---
