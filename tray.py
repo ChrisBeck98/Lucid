@@ -5,6 +5,8 @@ from chat_window import ChatWindow
 from settings_window import SettingsWindow
 from config.config_manager import load_config
 from chat_manager import ChatManagerWindow
+import uuid
+from config.chat_history_manager import save_chat_history, load_chat_history
 
 
 class TrayApp(QSystemTrayIcon):
@@ -23,11 +25,12 @@ class TrayApp(QSystemTrayIcon):
 
         self.setToolTip("Lucid")
         self.menu_popup = None
-
-
-
-
         self.activated.connect(self.tray_click)
+        try:
+            self.load_saved_chats()
+        except Exception as e:
+            print("[ERROR loading saved chats]:", e)
+
 
     def tray_click(self, reason):
         if reason == QSystemTrayIcon.Trigger:
@@ -165,12 +168,46 @@ class TrayApp(QSystemTrayIcon):
         chat_window.setFocus()
         self.chat_manager.refresh()
 
-
-
-
     def show_chat_manager(self):
         self.chat_manager.refresh()
         self.chat_manager.show()
         self.chat_manager.activateWindow()
         self.chat_manager.setFocus()
+
+    def save_all_chats(self):
+        chat_dicts = [chat.to_dict() for chat in self.chat_windows]
+        save_chat_history(chat_dicts)
+
+
+
+    def load_saved_chats(self):
+        from config.chat_history_manager import load_chat_history
+        print("[ChatManager] Loading saved chats...")
+
+        saved_chats = load_chat_history()
+        print(f"[ChatManager] {len(saved_chats)} saved chats found.")
+
+        for i, chat_data in enumerate(saved_chats):
+            try:
+                chat = ChatWindow(self.icon_path, self.config, self)
+                chat.chat_id = chat_data.get("id", str(uuid.uuid4()))
+                chat.custom_name = chat_data.get("name", f"Chat {i+1}")
+                chat.model_name = chat_data.get("model", "phind")
+                chat.message_history = chat_data.get("history", [])
+
+                chat.setUpdatesEnabled(False)  # Prevent UI redraw while loading
+
+                try:
+                    for sender, message in chat.message_history[-10:]:  # only load recent messages
+                        chat.add_message(sender, message, selectable=True)
+                finally:
+                    chat.setUpdatesEnabled(True)
+
+
+                chat.hide()
+                self.chat_windows.append(chat)
+
+            except Exception as e:
+                print(f"[ChatManager] Failed to load chat {i}: {e}")
+
 

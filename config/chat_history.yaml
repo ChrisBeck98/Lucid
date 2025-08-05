@@ -1,0 +1,25 @@
+chats:
+- history:
+  - - You
+    - test
+  - - AI
+    - Hello! I'm an AI assistant created by Phind to help with programming tasks.
+      How can I assist you today? Do you have any specific coding questions or problems
+      you'd like help with?
+  - - You
+    - test
+  - - AI
+    - Hello! I'm an AI assistant created by Phind to help with programming tasks.
+      How can I assist you today? Do you have any specific coding questions or problems
+      you'd like help with?
+  id: 5f8155fa-e3c2-476a-bbeb-709d690d4c2b
+  model: phind
+  name: Chat 1
+- history:
+  - - You
+    - hello
+  - - AI
+    - Hello! How can I assist you with your coding task today?
+  id: 36af4ee6-7769-4316-8d44-78d31930789a
+  model: phind
+  name: 'new chat #'

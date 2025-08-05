@@ -454,3 +454,13 @@ class SettingsWindow(QWidget):
         except Exception as e:
             print("[Startup Check Error]:", e)
             return False
+        
+    def mousePressEvent(self, event):
+        if event.button() == Qt.LeftButton:
+            self.drag_pos = event.globalPos() - self.frameGeometry().topLeft()
+            event.accept()
+
+    def mouseMoveEvent(self, event):
+        if event.buttons() & Qt.LeftButton and hasattr(self, "drag_pos"):
+            self.move(event.globalPos() - self.drag_pos)
+            event.accept()

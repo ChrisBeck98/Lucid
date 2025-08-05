@@ -22,13 +22,16 @@ from PyQt5.QtGui import QPixmap, QIcon, QClipboard
 from edge_tts import Communicate
 from playsound3 import playsound
 from widgets.enter_send_textedit import EnterSendTextEdit
-from config.config_manager import load_config
-
+import uuid
 
 
 class ChatWindow(QWidget):
     def __init__(self, icon_path, config, tray_ref=None):
         super().__init__()
+        self.chat_id = str(uuid.uuid4())
+        self.custom_name = f"Chat {len(tray_ref.chat_windows) + 1}" if tray_ref else "Chat"
+        self.message_history = []
+
         self.setWindowTitle("Lucid")
         self.tray_ref = tray_ref
         self.docked = True
@@ -41,8 +44,8 @@ class ChatWindow(QWidget):
         self.setProperty("docked", True)
         self.drag_pos = None
         self.is_maximized = False
-
         self.config = load_config()
+        self.model_name = self.config.get("selected_model", "phind")
         self.typing_speed = self.config.get("text_speed", 20)
         self.tts_voice = self.config.get("tts_voice", "en-GB-RyanNeural")
 
@@ -224,7 +227,7 @@ class ChatWindow(QWidget):
             self.docked = True
             self.setProperty("docked", True)
 
-
+        self.tray_ref.save_all_chats()
         self.show()  # Must call show() again after changing flags
 
     # --- Drag to Move ---
@@ -332,6 +335,8 @@ class ChatWindow(QWidget):
             bubble_layout.addWidget(controls)
 
         self.chat_content.addWidget(bubble_widget)
+        self.message_history.append((sender, message))
+
 
     def send_prompt(self):
         prompt = self.input_box.toPlainText().strip()
@@ -340,6 +345,8 @@ class ChatWindow(QWidget):
         self.add_message("You", prompt, selectable=True)
         self.input_box.clear()
         self.get_ai_response(prompt)
+        if self.tray_ref:
+            self.tray_ref.save_all_chats()
 
     def get_ai_response(self, prompt):
         try:
@@ -383,6 +390,7 @@ class ChatWindow(QWidget):
 
         self.typing_text = response
         self.typing_index = 0
+
 
         self.add_message("AI", response, selectable=True)
 
@@ -484,3 +492,11 @@ class ChatWindow(QWidget):
         except Exception as e:
             print(f"[Voice Error]: {e}")
 
+    def to_dict(self):
+        return {
+            "id": self.chat_id,
+            "name": getattr(self, "custom_name", "Chat"),
+            "model": self.model_name,
+            "history": self.message_history
+        }
+    

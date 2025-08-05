@@ -4,6 +4,7 @@ import keyboard
 from PyQt5.QtWidgets import QApplication
 from PyQt5.QtCore import QObject, pyqtSignal, QTimer
 from tray import TrayApp
+import atexit
 
 class HotkeyManager(QObject):
     open_chat_signal = pyqtSignal()
@@ -60,6 +61,8 @@ def main():
     # Register hotkeys safely
     tray.hotkey_manager = HotkeyManager(tray.config, tray)
     tray.hotkey_manager.register()
+
+    atexit.register(tray.save_all_chats)
 
     sys.exit(app.exec_())
 
