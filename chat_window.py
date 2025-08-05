@@ -335,7 +335,9 @@ class ChatWindow(QWidget):
             bubble_layout.addWidget(controls)
 
         self.chat_content.addWidget(bubble_widget)
-        self.message_history.append((sender, message))
+        if sender != "You":
+            self.message_history.append((sender, message))
+
 
 
     def send_prompt(self):
@@ -368,14 +370,29 @@ class ChatWindow(QWidget):
 
 
             cmd = f"tgpt -q --provider {provider}"
+
             if api_key and api_key != "enabled":
                 cmd += f" --key {api_key} --model {selected_model}"
                 if provider == "openai":
                     openai_url = self.config.get("openai_api_base", "https://api.openai.com/v1")
                     cmd += f" --url {openai_url}"
-            cmd += f' "{prompt}"'
 
+            # Append the original user message (preserve line breaks)
+            self.message_history.append(("You", prompt))
+
+            # Sanitize for tgpt prompt
+            sanitized_history = []
+            for sender, msg in self.message_history:
+                cleaned = msg.replace("\n", " | ").replace("\r", " ").strip()
+                sanitized_history.append(f"{sender}: {cleaned}")
+
+            # Use double-pipe to separate message blocks
+            full_prompt = " || ".join(sanitized_history)
+
+            cmd += f' "{full_prompt.strip()}"'
             print("[DEBUG] Running command:", cmd)
+
+
             result = subprocess.run(
                 cmd,
                 shell=True,

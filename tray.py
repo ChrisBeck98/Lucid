@@ -166,6 +166,7 @@ class TrayApp(QSystemTrayIcon):
         chat_window.show()
         chat_window.activateWindow()
         chat_window.setFocus()
+        self.save_all_chats()
         self.chat_manager.refresh()
 
     def show_chat_manager(self):
