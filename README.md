@@ -1,4 +1,4 @@
-# 🛠 Lucid – Technical Overview
+# Lucid
 
 **Lucid** is a taskbar-based AI assistant designed for simplicity, speed, and accessibility. Built with PyQt5, it provides a seamless user experience for interacting with large language models (LLMs) through a clean, floating chat window.
 
