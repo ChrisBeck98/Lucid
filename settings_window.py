@@ -17,6 +17,8 @@ from edge_tts import Communicate
 from playsound3 import playsound
 import ctypes
 import winreg
+from config.model_utils import get_provider_from_model
+
 
 ENABLED_MODELS = []
 
@@ -165,7 +167,7 @@ class SettingsWindow(QWidget):
             self.available_models.append("llama3-local")
 
         for model in self.available_models:
-            provider = self.get_provider_from_model(model)
+            provider = get_provider_from_model(model)
             if enabled_models.get(provider, False):
                 self.model_dropdown.addItem(model)
 
@@ -339,15 +341,7 @@ class SettingsWindow(QWidget):
             return line
 
 
-    def get_provider_from_model(self, model):
-        mapping = {
-            "gpt-3.5-turbo": "openai", "gpt-4o": "openai",
-            "gemini-pro": "gemini", "deepseek-chat": "deepseek",
-            "mixtral": "groq", "llama3": "groq",
-            "phind": "phind", "isou": "isou", "pollinations": "pollinations",
-            "llama3-local": "ollama"
-        }
-        return mapping.get(model, "phind")
+
 
     def get_installed_ollama_models(self):
         try:

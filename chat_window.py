@@ -9,6 +9,8 @@ import json
 from vosk import Model, KaldiRecognizer
 import sounddevice as sd
 from config.config_manager import load_config, save_config
+from config.model_utils import get_provider_from_model
+
 
 if sys.platform.startswith("win") and isinstance(asyncio.get_event_loop(), asyncio.ProactorEventLoop):
     asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
@@ -89,7 +91,7 @@ class ChatWindow(QWidget):
         ]
         enabled_models = self.config.get("enabled_models", {})
         for model in available_models:
-            provider = self.get_provider_from_model(model)
+            provider = get_provider_from_model(model)
             if enabled_models.get(provider, False):
                 self.model_dropdown.addItem(model)
 
@@ -245,15 +247,6 @@ class ChatWindow(QWidget):
         self.config = config
         self.typing_speed = config.get("text_speed", 20)
         self.tts_voice = config.get("tts_voice", "en-GB-RyanNeural")
-
-    def get_provider_from_model(self, model):
-        mapping = {
-            "gpt-3.5-turbo": "openai", "gpt-4o": "openai",
-            "gemini-pro": "gemini", "deepseek-chat": "deepseek",
-            "mixtral": "groq", "llama3": "groq",
-            "phind": "phind", "isou": "isou", "pollinations": "pollinations"
-        }
-        return mapping.get(model, "phind")
     
     def update_model_selection(self):
         selected_model = self.model_dropdown.currentText()
@@ -365,7 +358,7 @@ class ChatWindow(QWidget):
                 "isou": "isou",
                 "pollinations": "pollinations"
             }
-            provider = model_provider_map.get(selected_model, "phind")
+            provider = get_provider_from_model(selected_model)
             api_key = self.config.get("api_keys", {}).get(provider, "")
 
 
