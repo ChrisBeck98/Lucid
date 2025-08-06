@@ -340,7 +340,6 @@ class ChatWindow(QWidget):
         self.tray_ref.chat_manager.refresh()
 
 
-
     def send_prompt(self):
         prompt = self.input_box.toPlainText().strip()
         if not prompt:
