@@ -337,6 +337,7 @@ class ChatWindow(QWidget):
         self.chat_content.addWidget(bubble_widget)
         if sender != "You":
             self.message_history.append((sender, message))
+        self.tray_ref.chat_manager.refresh()
 
 
 

@@ -1,1 +1,52 @@
-chats: []
+chats:
+- history:
+  - - You
+    - test message
+  - - AI
+    - Test successful! I'm functioning properly as an AI assistant within the VSCode
+      extension. How can I help you with your coding or programming tasks today?
+  - - You
+    - hello
+  - - AI
+    - '[Exception]: ''int'' object is not callable'
+  - - AI
+    - Test successful! I'm functioning properly as an AI assistant within the VSCode
+      extension. How can I help you with your coding or programming tasks today?
+  - - AI
+    - '[Exception]: ''int'' object is not callable'
+  - - AI
+    - Test successful! I'm functioning properly as an AI assistant within the VSCode
+      extension. How can I help you with your coding or programming tasks today?
+  - - AI
+    - '[Exception]: ''int'' object is not callable'
+  - - AI
+    - Test successful! I'm functioning properly as an AI assistant within the VSCode
+      extension. How can I help you with your coding or programming tasks today?
+  - - AI
+    - '[Exception]: ''int'' object is not callable'
+  id: dfbac42f-88c1-407e-b2c3-92f4e90ecded
+  model: phind
+  name: Chat 1
+- history:
+  - - You
+    - hello
+  - - AI
+    - Hello! How can I assist you today?
+  - - AI
+    - Hello! How can I assist you today?
+  id: ccaf3d08-ac8f-4cf8-af5e-ee95b0745da6
+  model: phind
+  name: Chat 2
+- history:
+  - - You
+    - test
+  - - AI
+    - Y4:0
+  - - You
+    - hello
+  - - AI
+    - Hello! I'm an AI assistant created by Phind to help with programming tasks.
+      How can I assist you today?
+  id: 290c136b-e298-4dcb-992e-ff6f81e38734
+  model: phind
+  name: Chat 3
