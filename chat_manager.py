@@ -1,6 +1,7 @@
 from PyQt5.QtWidgets import (
     QWidget, QListWidget, QVBoxLayout, QLabel, QHBoxLayout,
-    QPushButton, QListWidgetItem, QInputDialog, QMenu, QAction
+    QPushButton, QListWidgetItem, QInputDialog, QMenu, QAction,
+    QLineEdit
 )
 from PyQt5.QtCore import Qt
 from PyQt5.QtGui import QIcon, QPixmap
@@ -46,6 +47,13 @@ class ChatManagerWindow(QWidget):
             QLabel {
                 color: #aaccff;
             }
+            QLineEdit {
+                background-color: #001626;
+                color: #aaccff;
+                border-radius: 6px;
+                padding: 4px 8px;
+                border: 1px solid #334455;
+            }
         """)
 
         # Layouts
@@ -61,6 +69,13 @@ class ChatManagerWindow(QWidget):
         header.addWidget(icon)
 
         header.addStretch()
+
+        # Input Search Bar
+        self.search_box = QLineEdit()
+        self.search_box.setPlaceholderText("Search chats...")
+        self.search_box.setFixedHeight(30)
+        self.search_box.textChanged.connect(self.refresh)
+        header.addWidget(self.search_box)
 
         # New Chat (+)
         new_btn = QPushButton("+")
@@ -91,25 +106,29 @@ class ChatManagerWindow(QWidget):
         self.chat_list.setContextMenuPolicy(Qt.CustomContextMenu)
         self.chat_list.customContextMenuRequested.connect(self.show_context_menu)
         layout.addWidget(self.chat_list)
-
-
         self.refresh()
 
     def refresh(self):
         self.chat_list.clear()
+        query = self.search_box.text().strip().lower() if hasattr(self, "search_box") else ""
+
         for i, chat in enumerate(self.tray_ref.chat_windows):
             title = getattr(chat, "custom_name", f"Chat {i + 1}")
             model = chat.config.get("selected_model", "Unknown")
-            title += f" ({model})"
-
+            title_with_model = f"{title} ({model})"
 
             preview = self.get_last_user_message(chat)
+
+            # Combine title and preview for filtering
+            search_text = f"{title_with_model} {preview}".lower()
+            if query and query not in search_text:
+                continue  # Skip chats that don't match the search
 
             widget = QWidget()
             vbox = QVBoxLayout(widget)
             vbox.setContentsMargins(10, 10, 10, 10)
 
-            title_label = QLabel(title)
+            title_label = QLabel(title_with_model)
             title_label.setStyleSheet("font-weight: bold;")
             vbox.addWidget(title_label)
 
@@ -122,6 +141,7 @@ class ChatManagerWindow(QWidget):
             item.setSizeHint(widget.sizeHint())
             self.chat_list.addItem(item)
             self.chat_list.setItemWidget(item, widget)
+
 
 
     def focus_chat(self, item):
