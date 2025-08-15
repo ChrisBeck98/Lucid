@@ -5,6 +5,9 @@ chats:
   - - AI
     - Test successful! I'm functioning properly as an AI assistant within the VSCode
       extension. How may I assist you with your coding tasks today?
+  - - AI
+    - Test successful! I'm functioning properly as an AI assistant within the VSCode
+      extension. How may I assist you with your coding tasks today?
   id: b109690b-96ff-45f5-9525-384d02f391ad
   model: phind
   name: Chat 1
@@ -12,3 +15,7 @@ chats:
   id: 20f6b406-e78d-4686-adac-ef57fdb8abbf
   model: phind
   name: Chat 2
+- history: []
+  id: 06523bc9-50c7-4f04-bcc7-1856ad5d4f9e
+  model: phind
+  name: Chat 3
