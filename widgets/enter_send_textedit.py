@@ -1,8 +1,6 @@
-# widgets/enter_send_textedit.py
-
-from PyQt5.QtWidgets import QTextEdit
+from PyQt5.QtWidgets import QTextEdit, QMenu, QAction
 from PyQt5.QtGui import QTextCharFormat, QTextCursor, QColor
-from PyQt5.QtCore import Qt
+from PyQt5.QtCore import Qt, QPoint
 from spellchecker import SpellChecker
 import re
 
@@ -22,11 +20,10 @@ class EnterSendTextEdit(QTextEdit):
 
     def highlight_misspellings(self):
         try:
-            self.blockSignals(True)  # Prevent recursive textChanged
+            self.blockSignals(True)
             cursor = self.textCursor()
             cursor.beginEditBlock()
 
-            # Clear previous formatting
             fmt_clear = QTextCharFormat()
             fmt_clear.setUnderlineStyle(QTextCharFormat.NoUnderline)
             fmt_clear.setForeground(QColor("#aaccff"))
@@ -39,8 +36,8 @@ class EnterSendTextEdit(QTextEdit):
                 cursor.endEditBlock()
                 return
 
-            misspelled = self.spellchecker.unknown(words)
-            for word in misspelled:
+            self.misspelled_words = self.spellchecker.unknown(words)
+            for word in self.misspelled_words:
                 self._underline_word(word)
 
             cursor.endEditBlock()
@@ -62,3 +59,50 @@ class EnterSendTextEdit(QTextEdit):
             if cursor.isNull():
                 break
             cursor.mergeCharFormat(fmt)
+
+    def contextMenuEvent(self, event):
+        cursor = self.cursorForPosition(event.pos())
+        cursor.select(QTextCursor.WordUnderCursor)
+        word = cursor.selectedText().strip()
+
+        menu = QMenu(self)
+
+        if word.isalpha() and word in getattr(self, 'misspelled_words', []):
+            suggestions = self.spellchecker.candidates(word)
+            top_suggestions = list(suggestions)[:3] if suggestions else []
+
+            if top_suggestions:
+                for suggestion in top_suggestions:
+                    action = QAction(suggestion, self)
+                    action.triggered.connect(lambda _, s=suggestion, c=QTextCursor(cursor): self.replace_word(c, s))
+                    menu.addAction(action)
+            else:
+                no_suggestion_action = QAction("(No suggestions)", self)
+                no_suggestion_action.setEnabled(False)
+                menu.addAction(no_suggestion_action)
+
+            menu.addSeparator()
+
+        # Always add basic edit actions
+        cut_action = QAction("Cut", self)
+        cut_action.triggered.connect(self.cut)
+        menu.addAction(cut_action)
+
+        copy_action = QAction("Copy", self)
+        copy_action.triggered.connect(self.copy)
+        menu.addAction(copy_action)
+
+        paste_action = QAction("Paste", self)
+        paste_action.triggered.connect(self.paste)
+        menu.addAction(paste_action)
+
+        menu.exec_(self.mapToGlobal(event.pos()))
+
+
+
+    def replace_word(self, cursor, replacement):
+        cursor.beginEditBlock()
+        cursor.removeSelectedText()
+        cursor.insertText(replacement)
+        cursor.endEditBlock()
+        self.highlight_misspellings()
